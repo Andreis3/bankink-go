@@ -1,0 +1,22 @@
+version: "3"
+
+services:
+  app:
+    build: .
+    container_name: app
+    volumes:
+      - .:/go/src
+    ports:
+      - "3000:3000"
+  mysql:
+    image: mysql:5.7.22
+    container_name: mysql
+    restart: always
+    command: --innodb_use_native_aio=0
+    environment:
+      MYSQL_DATABASE: banking
+      MYSQL_USER: root
+      MYSQL_PASSWORD: root
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3306:3306"
