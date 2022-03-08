@@ -1,11 +1,13 @@
 package app
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 
 	"github.com/gorilla/mux"
 
+	"github.com/santos/banking-go/config"
 	"github.com/santos/banking-go/domain"
 	"github.com/santos/banking-go/service"
 )
@@ -23,5 +25,5 @@ func Start() {
 	router.HandleFunc("/customers/{customer_id:[0-9]+}", ch.getCustomer).Methods(http.MethodGet)
 
 	// starting server
-	log.Fatal(http.ListenAndServe("localhost:3000", router))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf("%s:%s", config.SERVER_HOST, config.SERVER_PORT), router))
 }
