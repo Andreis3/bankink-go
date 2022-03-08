@@ -2,16 +2,18 @@ package service
 
 import (
 	"github.com/santos/banking-go/domain"
+	"github.com/santos/banking-go/dto"
 	"github.com/santos/banking-go/errs"
 )
 
 type CustomerService interface {
 	GetAllCustomer(status string) ([]domain.Customer, *errs.AppError)
-	GetCustomer(id string) (*domain.Customer, *errs.AppError)
+	GetCustomer(id string) (*dto.CustomerResponse, *errs.AppError)
 }
 
 type DefaultCustomerService struct {
-	repo domain.CustomerRepository
+	repo             domain.CustomerRepository
+	customerResponse dto.CustomerResponse
 }
 
 func (s DefaultCustomerService) GetAllCustomer(status string) ([]domain.Customer, *errs.AppError) {
@@ -25,12 +27,19 @@ func (s DefaultCustomerService) GetAllCustomer(status string) ([]domain.Customer
 	return s.repo.FindAll(status)
 }
 
-func (s DefaultCustomerService) GetCustomer(id string) (*domain.Customer, *errs.AppError) {
-	return s.repo.FindById(id)
+func (s DefaultCustomerService) GetCustomer(id string) (*dto.CustomerResponse, *errs.AppError) {
+	c, err := s.repo.FindById(id)
+	if err != nil {
+		return nil, err
+	}
+	response := s.customerResponse.MapCustomerToCustomerResponse(c)
+
+	return response, nil
 }
 
 func NewCustomerService(repository domain.CustomerRepository) DefaultCustomerService {
 	return DefaultCustomerService{
-		repo: repository,
+		repo:             repository,
+		customerResponse: dto.CustomerResponse{},
 	}
 }
