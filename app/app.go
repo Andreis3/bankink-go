@@ -22,6 +22,7 @@ func Start() {
 	// wiring
 	customerRepositoryDb := domain.NewCustomerRepositoryDb(dbClient)
 	accountRepositoryDb := domain.NewAccountRepositoryDb(dbClient)
+	authRepository := domain.NewAuthRepository(dbClient)
 
 	ch := CustomerHandlers{
 		service: service.NewCustomerService(customerRepositoryDb),
@@ -30,11 +31,28 @@ func Start() {
 		service: service.NewAccountService(accountRepositoryDb),
 	}
 
-	// define routes
-	router.HandleFunc("/customers", ch.getAllCustomers).Methods(http.MethodGet)
-	router.HandleFunc("/customers/{customer_id:[0-9]+}", ch.getCustomer).Methods(http.MethodGet)
-	router.HandleFunc("/customers/{customer_id:[0-9]+}/account", ah.newAccount).Methods(http.MethodPost)
-	router.HandleFunc("/customers/{customer_id:[0-9]+}/account/{account_id:[0-9]+}", ah.MakeTransaction).Methods(http.MethodPost)
+	auth := AuthHandler{
+		service.NewLoginService(authRepository, domain.GetRolePermissions()),
+	}
+
+	am := AuthMiddleware{
+		service: auth,
+	}
+
+	//authorization
+
+	router.Path("/auth/login").Handler(http.HandlerFunc(auth.Login)).Methods(http.MethodPost)
+	router.HandleFunc("/auth/register", auth.NotImplementedHandler).Methods(http.MethodPost)
+	router.HandleFunc("/auth/refresh", auth.Refresh).Methods(http.MethodPost)
+	router.HandleFunc("/auth/verify", auth.Verify).Methods(http.MethodGet)
+
+	// api customers routes
+	apiCustomer := router.PathPrefix("/customers").Subrouter()
+	apiCustomer.Use(am.authorizationHandler())
+	apiCustomer.HandleFunc("", ch.getAllCustomers).Methods(http.MethodGet).Name("GetAllCustomers")
+	apiCustomer.HandleFunc("/{customer_id:[0-9]+}", ch.getCustomer).Methods(http.MethodGet).Name("GetCustomer")
+	apiCustomer.HandleFunc("/{customer_id:[0-9]+}/account", ah.newAccount).Methods(http.MethodPost).Name("NewAccount")
+	apiCustomer.HandleFunc("/{customer_id:[0-9]+}/account/{account_id:[0-9]+}", ah.MakeTransaction).Methods(http.MethodPost).Name("NewTransaction")
 
 	// starting server
 	log.Fatal(http.ListenAndServe(fmt.Sprintf("%s:%s", config.SERVER_HOST, config.SERVER_PORT), router))

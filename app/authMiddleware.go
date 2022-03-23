@@ -8,29 +8,37 @@ import (
 
 	"github.com/santos/banking-go/domain"
 	"github.com/santos/banking-go/errs"
+	"github.com/santos/banking-go/service"
 )
 
 type AuthMiddleware struct {
-	repo domain.AuthRepository
+	service    AuthHandler
+	permission domain.RolePermissions
 }
 
 func (a AuthMiddleware) authorizationHandler() func(handler http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			customerRoute := mux.CurrentRoute(r)
-			currentRouteVars := mux.Vars(r)
+			//currentRouteVars := mux.Vars(r)
 			authHeader := r.Header.Get("Authorization")
 
 			if authHeader != "" {
 				token := getTokenFromHeader(authHeader)
 
-				isAuthorized := a.repo.IsAuthorized(token, customerRoute.GetName(), currentRouteVars)
+				parserToken := map[string]string{
+					"token":      token,
+					"route_name": customerRoute.GetName(),
+				}
 
-				if isAuthorized {
-					next.ServeHTTP(w, r)
-				} else {
+				isAuthorized := a.service.service.Verify(parserToken)
+
+				if isAuthorized != nil {
 					appError := errs.AppError{http.StatusForbidden, "Unauthorized"}
 					writeResponse(w, appError.Code, appError.AsMessage())
+
+				} else {
+					next.ServeHTTP(w, r)
 				}
 			}
 		})
@@ -48,4 +56,15 @@ func getTokenFromHeader(header string) string {
 		return strings.TrimSpace(spliToken[1])
 	}
 	return ""
+}
+
+type DefaultAuthService struct {
+	service    service.AuthService
+	permission domain.RolePermissions
+}
+
+func NewAuthService() *DefaultAuthService {
+	return &DefaultAuthService{
+		permission: domain.GetRolePermissions(),
+	}
 }

@@ -1,59 +1,75 @@
 package domain
 
 import (
-	"encoding/json"
-	"fmt"
-	"net/http"
-	"net/url"
+	"database/sql"
 
+	"github.com/jmoiron/sqlx"
+
+	"github.com/santos/banking-go/errs"
 	"github.com/santos/banking-go/logger"
 )
 
 type AuthRepository interface {
-	IsAuthorized(token string, routeName string, vars map[string]string) bool
+	FindBy(username string, password string) (*Login, *errs.AppError)
+	GenerateAndSaveRefreshTokenToStore(authToken AuthToken) (string, *errs.AppError)
+	RefreshTokenExists(refreshToken string) *errs.AppError
 }
 
-type RemoteAuthRepository struct{}
+type AuthRepositoryDB struct {
+	client *sqlx.DB
+}
 
-func (r RemoteAuthRepository) IsAuthorized(token string, routeName string, vars map[string]string) bool {
-	u := buildVerifyURL(token, routeName, vars)
-
-	if response, err := http.Get(u); err != nil {
-		fmt.Println("Error while sending..." + err.Error())
-		return false
-	} else {
-		m := map[string]bool{}
-		if err = json.NewDecoder(response.Body).Decode(&m); err != nil {
-			logger.Error("Error while decoding response from auth server:" + err.Error())
-			return false
+func (d AuthRepositoryDB) RefreshTokenExists(refreshToken string) *errs.AppError {
+	sqlSelect := "SELECT refresh_token FROM refresh_token_store where refresh_token = ?"
+	var token string
+	err := d.client.Get(&token, sqlSelect, refreshToken)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return errs.NewUnexpectedError("refresh token not registered in the store")
+		} else {
+			logger.Error("Unexpected database error: " + err.Error())
+			return errs.NewUnexpectedError("unexpected database error")
 		}
-		return m["isAuthorized"]
 	}
+	return nil
 }
 
-/*
-  This will generate a url for token verification in the below format
-  /auth/verify?token={token string}
-              &routeName={current route name}
-              &customer_id={customer id from the current route}
-              &account_id={account id from current route if available}
-  Sample: /auth/verify?token=aaaa.bbbb.cccc&routeName=MakeTransaction&customer_id=2000&account_id=95470
-*/
-
-func buildVerifyURL(token string, routeName string, vars map[string]string) string {
-	u := url.URL{Host: "localhost:3000", Path: "auth/verify", Scheme: "http"}
-	q := u.Query()
-	q.Add("token", token)
-	q.Add("routeName", routeName)
-
-	for k, v := range vars {
-		q.Add(k, v)
+func (d AuthRepositoryDB) GenerateAndSaveRefreshTokenToStore(authToken AuthToken) (string, *errs.AppError) {
+	// generate the refresh token
+	var appErr *errs.AppError
+	var refreshToken string
+	if refreshToken, appErr = authToken.newRefreshToken(); appErr != nil {
+		return "", appErr
 	}
 
-	u.RawQuery = q.Encode()
-	return u.String()
+	// store it in the store
+	sqlInsert := "insert into refresh_token_store (refresh_token) values (?)"
+	_, err := d.client.Exec(sqlInsert, refreshToken)
+	if err != nil {
+		logger.Error("unexpected database error: " + err.Error())
+		return "", errs.NewUnexpectedError("unexpected database error")
+	}
+	return refreshToken, nil
 }
 
-func NewAuthRepository() RemoteAuthRepository {
-	return RemoteAuthRepository{}
+func (d AuthRepositoryDB) FindBy(username, password string) (*Login, *errs.AppError) {
+	var login Login
+	sqlVerify := `SELECT u.username, u.customer_id, role, group_concat(a.account_id) as account_numbers FROM users u
+                  LEFT JOIN accounts a ON a.customer_id = u.customer_id
+                WHERE u.username = ? and password = ?
+                GROUP BY a.customer_id`
+	err := d.client.Get(&login, sqlVerify, username, password)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, errs.NewAuthenticationError("invalid credentials")
+		} else {
+			logger.Error("Error while verifying login request from database: " + err.Error())
+			return nil, errs.NewUnexpectedError("Unexpected database error")
+		}
+	}
+	return &login, nil
+}
+
+func NewAuthRepository(client *sqlx.DB) AuthRepositoryDB {
+	return AuthRepositoryDB{client}
 }

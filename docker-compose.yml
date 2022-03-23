@@ -12,7 +12,9 @@ services:
     image: mysql:5.7.22
     container_name: mysql
     restart: always
-    command: --innodb_use_native_aio=0
+    command:
+      --innodb_use_native_aio=0
+      --sql_mode=""
     environment:
       MYSQL_DATABASE: banking
       MYSQL_USER: root
