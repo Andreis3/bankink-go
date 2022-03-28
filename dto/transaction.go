@@ -25,15 +25,15 @@ type TransactionResponse struct {
 }
 
 func (t TransactionRequest) IsTransactionTypeWithdrawal() bool {
-	if t.TransactionType == WITHDRAWAL {
-		return true
-	}
+	return t.TransactionType == WITHDRAWAL
+}
 
-	return false
+func (t TransactionRequest) IsTransactionTypeDeposit() bool {
+	return t.TransactionType == DEPOSIT
 }
 
 func (t TransactionRequest) Validate() *errs.AppError {
-	if t.TransactionType != WITHDRAWAL && t.TransactionType != DEPOSIT {
+	if !t.IsTransactionTypeWithdrawal() && !t.IsTransactionTypeDeposit() {
 		return errs.NewValidateError("Transaction type can only be deposit or withdrawal")
 	}
 
