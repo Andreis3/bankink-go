@@ -20,9 +20,9 @@ func (cr CustomerResponse) statusAsText() string {
 	return statusText
 }
 
-func (cr CustomerResponse) MapCustomerToCustomerResponse(c *domain.Customer) *CustomerResponse {
+func (cr CustomerResponse) MapCustomerToCustomerResponse(c *domain.Customer) CustomerResponse {
 
-	return &CustomerResponse{
+	return CustomerResponse{
 		Id:          c.Id,
 		Name:        c.Name,
 		City:        c.City,

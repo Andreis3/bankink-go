@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"regexp"
 
 	"github.com/joho/godotenv"
 
@@ -19,8 +20,14 @@ var (
 	DB_DRIVER   string
 )
 
+const projectDirName = "banking-go"
+
 func init() {
-	err := godotenv.Load()
+	projectName := regexp.MustCompile(`^(.*` + projectDirName + `)`)
+	currentWorkDirectory, _ := os.Getwd()
+	rootPath := projectName.Find([]byte(currentWorkDirectory))
+
+	err := godotenv.Load(string(rootPath) + `/.env`)
 	if err != nil {
 		logger.Error(" Error loading .env file " + err.Error())
 	}

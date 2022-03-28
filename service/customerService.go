@@ -6,8 +6,9 @@ import (
 	"github.com/santos/banking-go/errs"
 )
 
+//go:generate mockgen -destination=../mocks/service/mockCustomerService.go -package=service github.com/santos/banking-go/service CustomerService
 type CustomerService interface {
-	GetAllCustomer(status string) ([]domain.Customer, *errs.AppError)
+	GetAllCustomer(status string) ([]dto.CustomerResponse, *errs.AppError)
 	GetCustomer(id string) (*dto.CustomerResponse, *errs.AppError)
 }
 
@@ -16,7 +17,7 @@ type DefaultCustomerService struct {
 	customerResponse dto.CustomerResponse
 }
 
-func (s DefaultCustomerService) GetAllCustomer(status string) ([]domain.Customer, *errs.AppError) {
+func (s DefaultCustomerService) GetAllCustomer(status string) ([]dto.CustomerResponse, *errs.AppError) {
 	if status == "active" {
 		status = "1"
 	} else if status == "inactive" {
@@ -24,7 +25,16 @@ func (s DefaultCustomerService) GetAllCustomer(status string) ([]domain.Customer
 	} else {
 		status = ""
 	}
-	return s.repo.FindAll(status)
+	customers, err := s.repo.FindAll(status)
+	if err != nil {
+		return nil, err
+	}
+	customerResponse := &dto.CustomerResponse{}
+	response := make([]dto.CustomerResponse, 0)
+	for _, c := range customers {
+		response = append(response, customerResponse.MapCustomerToCustomerResponse(&c))
+	}
+	return response, err
 }
 
 func (s DefaultCustomerService) GetCustomer(id string) (*dto.CustomerResponse, *errs.AppError) {
@@ -34,7 +44,7 @@ func (s DefaultCustomerService) GetCustomer(id string) (*dto.CustomerResponse, *
 	}
 	response := s.customerResponse.MapCustomerToCustomerResponse(c)
 
-	return response, nil
+	return &response, nil
 }
 
 func NewCustomerService(repository domain.CustomerRepository) DefaultCustomerService {
