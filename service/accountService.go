@@ -26,9 +26,8 @@ func (d DefaultAccountService) NewAccount(req dto.NewAccountRequest) (*dto.NewAc
 		return nil, err
 	}
 	account := domain.Account{
-		AccountID:   "",
 		CustomerID:  req.CustomerID,
-		OpeningDAte: time.Now().Format("2006-01-02 15:04:05"),
+		OpeningDAte: time.Now().Format(dbTSLayout),
 		AccountType: req.AccountType,
 		Amount:      req.Amount,
 		Status:      "1",
